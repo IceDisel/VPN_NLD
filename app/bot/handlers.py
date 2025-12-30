@@ -4,6 +4,7 @@ from app.bot.keyboards import kb1, ikb1, ikb2
 
 from app.db.database import AsyncSessionLocal
 from app.db import crud
+from app.vpn.wg_sender import send_wg_to_user
 
 router = Router()
 
@@ -66,67 +67,16 @@ async def cmd_connect(message: types.Message):
     )
 
 
-# 🔹 Inline callbacks
-# @router.callback_query(F.data == "wg")
-# async def choose_wireguard(callback: types.CallbackQuery):
-#     """
-#     Пользователь выбрал WireGuard.
-#     Тут решаем:
-#     - есть ли trial
-#     - если нет — выдаём trial
-#     - если есть — предлагаем оплату
-#     """
-#
-#     async with AsyncSessionLocal() as session:
-#
-#         # Получаем пользователя
-#         user = await crud.get_user_by_tg_id(
-#             session=session,
-#             tg_id=callback.from_user.id
-#         )
-#
-#         # Проверяем, был ли trial на WireGuard
-#         trial_exists = await crud.has_trial(
-#             session=session,
-#             user_id=user.id,
-#             vpn_type="wireguard"
-#         )
-#
-#         if not trial_exists:
-#             # 🎁 Выдаём trial на 3 дня
-#             await crud.create_trial_subscription(
-#                 session=session,
-#                 user_id=user.id,
-#                 vpn_type="wireguard",
-#                 days=3
-#             )
-#
-#             text = (
-#                 "🎁 Вам выдан пробный доступ к WireGuard на 3 дня!\n\n"
-#                 "Если понравится — сможете продлить подписку 👇"
-#             )
-#         else:
-#             # Trial уже был → только оплата
-#             text = (
-#                 "ℹ️ Пробный период WireGuard уже использован.\n\n"
-#                 "Выберите платную подписку 👇"
-#             )
-#
-#     await callback.message.edit_text(
-#         text,
-#         reply_markup=ikb2
-#     )
-#     await callback.answer()
 @router.callback_query(F.data == "wg")
 async def choose_wireguard(callback: types.CallbackQuery):
     """
     Пользователь выбрал WireGuard.
 
     Возможные сценарии:
-    1️⃣ Нет подписки → даём trial
-    2️⃣ Trial активен → показываем статус
+    1️⃣ Нет подписки → даём trial + выдаём VPN
+    2️⃣ Trial активен → выдаём VPN
     3️⃣ Trial закончился → предлагаем оплату
-    4️⃣ Есть платная активная → показываем статус
+    4️⃣ Платная активна → выдаём VPN
     """
 
     async with AsyncSessionLocal() as session:
@@ -137,16 +87,17 @@ async def choose_wireguard(callback: types.CallbackQuery):
             tg_id=callback.from_user.id
         )
 
-        # Получаем последнюю подписку на WireGuard
+        # Последняя подписка WireGuard
         subscription = await crud.get_latest_subscription(
             session=session,
             user_id=user.id,
             vpn_type="wireguard"
         )
 
-        # 🔹 Сценарий 1: подписки вообще не было
+        # ========== СЦЕНАРИЙ 1 ==========
         if subscription is None:
-            await crud.create_trial_subscription(
+            # 🎁 Создаём trial на 3 дня
+            subscription = await crud.create_trial_subscription(
                 session=session,
                 user_id=user.id,
                 vpn_type="wireguard",
@@ -155,38 +106,56 @@ async def choose_wireguard(callback: types.CallbackQuery):
 
             text = (
                 "🎁 Вам выдан пробный доступ к WireGuard на 3 дня!\n\n"
-                "Вы можете начать пользоваться VPN уже сейчас."
+                "⚙️ Сейчас я подготовлю VPN-конфигурацию."
             )
 
-        else:
-            # Подписка была — проверяем активность
-            is_active = crud.is_subscription_active(subscription)
+            # Сообщаем пользователю
+            await callback.message.edit_text(text)
+            await callback.answer()
 
-            # 🔹 Сценарий 2 и 4: подписка активна
-            if is_active:
-                remaining_days = (
-                    subscription.end_date - subscription.start_date
-                ).days
+            # 🔥 Выдаём WireGuard
+            await send_wg_to_user(
+                bot=callback.bot,
+                chat_id=callback.from_user.id,
+            )
+            return
 
-                text = (
-                    "✅ У вас есть активная подписка WireGuard.\n\n"
-                    f"📅 Действует до: {subscription.end_date.strftime('%d.%m.%Y %H:%M')}\n"
-                    f"⏳ Осталось дней: {remaining_days}"
-                )
+        # Проверяем активность подписки
+        is_active = crud.is_subscription_active(subscription)
 
-            # 🔹 Сценарий 3: подписка истекла
-            else:
-                text = (
-                    "⛔ Ваша подписка WireGuard истекла.\n\n"
-                    "Вы можете продлить доступ, выбрав тариф 👇"
-                )
+        # ========== СЦЕНАРИИ 2 и 4 ==========
+        if is_active:
+            remaining_days = (
+                subscription.end_date - subscription.start_date
+            ).days
 
-    # 🔹 Если подписка неактивна — показываем тарифы
-    reply_markup = ikb2 if subscription is None or not crud.is_subscription_active(subscription) else None
+            text = (
+                "✅ У вас есть активная подписка WireGuard.\n\n"
+                f"📅 Действует до: {subscription.end_date.strftime('%d.%m.%Y %H:%M')}\n"
+                f"⏳ Осталось дней: {remaining_days}\n\n"
+                "⚙️ Подготавливаю VPN-конфигурацию…"
+            )
 
+            await callback.message.edit_text(text)
+            await callback.answer()
+
+            # 🔥 Выдаём WireGuard (повторно, если нужно)
+            await send_wg_to_user(
+                bot=callback.bot,
+                chat_id=callback.from_user.id,
+            )
+            return
+
+        # ========== СЦЕНАРИЙ 3 ==========
+        text = (
+            "⛔ Ваша подписка WireGuard истекла.\n\n"
+            "Для продолжения работы VPN выберите тариф 👇"
+        )
+
+    # Подписка неактивна → показываем оплату
     await callback.message.edit_text(
         text,
-        reply_markup=reply_markup
+        reply_markup=ikb2
     )
     await callback.answer()
 

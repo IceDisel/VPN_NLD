@@ -41,6 +41,10 @@ class Subscription(Base):
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime, nullable=False)
 
+    # 🔹 WireGuard данные (ТОЛЬКО для wireguard)
+    wg_public_key = Column(String, nullable=True)
+    wg_ip = Column(String, nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="subscriptions")

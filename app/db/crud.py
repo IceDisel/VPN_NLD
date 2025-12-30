@@ -126,3 +126,24 @@ def is_subscription_active(subscription: Subscription) -> bool:
     """
     now = datetime.utcnow()
     return subscription.end_date > now
+
+
+async def attach_wg_to_subscription(
+    session,
+    subscription_id: int,
+    public_key: str,
+    ip: str,
+):
+    """
+    Сохраняет WireGuard-данные в подписке.
+    """
+    result = await session.execute(
+        select(Subscription).where(Subscription.id == subscription_id)
+    )
+    sub = result.scalar_one()
+
+    sub.wg_public_key = public_key
+    sub.wg_ip = ip
+
+    await session.commit()
+

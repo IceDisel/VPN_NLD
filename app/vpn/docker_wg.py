@@ -166,3 +166,27 @@ class DockerWG:
             "save",
             interface
         ])
+
+    @classmethod
+    async def remove_peer(
+            cls,
+            public_key: str,
+            interface: str = "wg0"
+    ):
+        """
+        Удаляет peer из WireGuard.
+
+        Аналог:
+            wg set wg0 peer <PUBKEY> remove
+        """
+        await cls._run([
+            "wg",
+            "set",
+            interface,
+            "peer",
+            public_key,
+            "remove"
+        ])
+
+        # 🔥 Обязательно сохраняем конфиг
+        await cls.save_config(interface)
