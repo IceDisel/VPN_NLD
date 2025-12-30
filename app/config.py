@@ -6,6 +6,10 @@ load_dotenv()
 TOKEN_API = os.getenv("BOT_TOKEN")
 # YOOTOKEN = '381764678:TEST:53426'
 
+WG_API_URL = os.getenv("WG_API_URL")
+WG_API_USERNAME = os.getenv("WG_API_USERNAME")
+WG_API_PASSWORD = os.getenv("WG_API_PASSWORD")
+
 HELP_CMD = """
 <b>/start</b> - <em>Запуск бота</em>
 <b>/help</b> - <em>Справка</em>
