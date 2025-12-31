@@ -4,6 +4,8 @@ from app.bot.keyboards import kb1, ikb1, ikb2
 
 from app.db.database import AsyncSessionLocal
 from app.db import crud
+from aiogram.types import LabeledPrice
+from app.services.pricing import PRICES
 from app.vpn.wg_sender import send_wg_to_user
 
 router = Router()
@@ -166,6 +168,90 @@ async def choose_vless(callback: types.CallbackQuery):
         "Vless временно недоступен 🚧"
     )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("sub_"))
+async def buy_subscription(callback: types.CallbackQuery):
+    """
+    Пользователь выбрал тариф → отправляем invoice
+    """
+
+    tariff = PRICES.get(callback.data)
+
+    if not tariff:
+        await callback.answer("❌ Неверный тариф")
+        return
+
+    prices = [
+        LabeledPrice(
+            label=tariff["title"],
+            amount=tariff["stars"]  # ВАЖНО: именно Stars
+        )
+    ]
+
+    await callback.bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=tariff["title"],
+        description=f"Доступ к VPN на {tariff['days']} дней",
+        payload=callback.data,  # вернётся при оплате
+        provider_token="",      # ❗ пусто для Stars
+        currency="XTR",
+        prices=prices,
+    )
+
+    await callback.answer()
+
+
+@router.pre_checkout_query()
+async def process_pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
+    """
+    Telegram проверяет, готов ли бот принять платёж
+    """
+    await pre_checkout_query.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def successful_payment(message: types.Message):
+    """
+    Платёж прошёл успешно.
+    Тут мы:
+    - создаём / продлеваем подписку
+    - активируем VPN
+    """
+
+    payload = message.successful_payment.invoice_payload
+    tariff = PRICES.get(payload)
+
+    if not tariff:
+        await message.answer("❌ Ошибка тарифа")
+        return
+
+    async with AsyncSessionLocal() as session:
+
+        user = await crud.get_user_by_tg_id(
+            session=session,
+            tg_id=message.from_user.id
+        )
+
+        # создаём НОВУЮ подписку (правильно)
+        await crud.create_paid_subscription(
+            session=session,
+            user_id=user.id,
+            vpn_type="wireguard",
+            days=tariff["days"]
+        )
+
+    await message.answer(
+        "✅ Оплата прошла успешно!\n\n"
+        "⚙️ Сейчас подготовлю VPN-конфигурацию."
+    )
+
+    # Выдаём WireGuard
+    from app.vpn.wg_sender import send_wg_to_user
+    await send_wg_to_user(
+        bot=message.bot,
+        chat_id=message.from_user.id
+    )
 
 
 @router.message()

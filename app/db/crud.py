@@ -147,3 +147,28 @@ async def attach_wg_to_subscription(
 
     await session.commit()
 
+
+async def create_paid_subscription(
+    session,
+    user_id: int,
+    vpn_type: str,
+    days: int,
+):
+    """
+    Создаёт платную подписку на N дней
+    """
+
+    now = datetime.utcnow()
+
+    sub = Subscription(
+        user_id=user_id,
+        vpn_type=vpn_type,
+        is_trial=False,
+        is_active=True,
+        start_date=now,
+        end_date=now + timedelta(days=days),
+    )
+
+    session.add(sub)
+    await session.commit()
+    return sub
