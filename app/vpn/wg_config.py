@@ -2,18 +2,10 @@
 Генерация клиентского WireGuard-конфига (.conf)
 """
 
-from app.config import (
-    WG_SERVER_PUBLIC_KEY,
-    WG_SERVER_ENDPOINT,
-    WG_ALLOWED_IPS,
-    WG_PERSISTENT_KEEPALIVE,
-)
+from app.config import (WG_SERVER_PUBLIC_KEY, WG_SERVER_ENDPOINT, WG_ALLOWED_IPS, WG_PERSISTENT_KEEPALIVE, )
 
 
-def generate_client_config(
-    client_private_key: str,
-    client_ip: str,
-) -> str:
+def generate_client_config(client_private_key: str, client_ip: str, ) -> str:
     """
     Генерирует WireGuard-конфиг для клиента.
 
