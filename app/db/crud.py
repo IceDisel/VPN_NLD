@@ -45,7 +45,8 @@ async def has_trial(session: AsyncSession, user_id: int, vpn_type: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-async def create_trial_subscription(session: AsyncSession, user_id: int, vpn_type: str, days: int = 3) -> Subscription:
+async def create_trial_subscription(session: AsyncSession, user_id: int, vpn_type: str, wg_public_key: str,
+                                    wg_private_key: str, wg_ip: str, days: int = 3) -> Subscription:
     """
     Создаёт trial-подписку на N дней.
     """
@@ -57,7 +58,10 @@ async def create_trial_subscription(session: AsyncSession, user_id: int, vpn_typ
         is_trial=True,
         is_active=True,
         start_date=now,
-        end_date=now + timedelta(days=days)
+        end_date=now + timedelta(days=days),
+        wg_public_key=wg_public_key,
+        wg_private_key=wg_private_key,
+        wg_ip=wg_ip
     )
 
     session.add(sub)
