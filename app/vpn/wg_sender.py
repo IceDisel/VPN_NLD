@@ -8,10 +8,7 @@ from aiogram.types import BufferedInputFile
 from app.vpn.wg_delivery import prepare_wg_for_user
 
 
-async def send_wg_to_user(
-    bot: Bot,
-    chat_id: int,
-):
+async def send_wg_to_user(bot: Bot, chat_id: int, ):
     """
     Полный сценарий:
     - создаёт WireGuard peer
@@ -42,21 +39,9 @@ async def send_wg_to_user(
     )
 
     # 3️⃣ Отправляем QR-код
-    await bot.send_photo(
-        chat_id,
-        photo=BufferedInputFile(
-            qr_buffer.getvalue(),
-            filename="wireguard_qr.png"
-        ),
-        caption="📱 QR-код для подключения"
-    )
+    await bot.send_photo(chat_id, photo=BufferedInputFile(qr_buffer.getvalue(), filename="wireguard_qr.png"),
+                         caption="📱 QR-код для подключения")
 
     # 4️⃣ Отправляем .conf файл
-    await bot.send_document(
-        chat_id,
-        document=BufferedInputFile(
-            config_text.encode(),
-            filename="wireguard.conf"
-        ),
-        caption="💻 Файл конфигурации WireGuard"
-    )
+    await bot.send_document(chat_id, document=BufferedInputFile(config_text.encode(), filename="wireguard.conf"),
+                            caption="💻 Файл конфигурации WireGuard")
