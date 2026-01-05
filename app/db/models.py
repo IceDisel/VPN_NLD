@@ -43,6 +43,7 @@ class Subscription(Base):
 
     # 🔹 WireGuard данные (ТОЛЬКО для wireguard)
     wg_public_key = Column(String, nullable=True)
+    wg_private_key = Column(String, nullable=True)
     wg_ip = Column(String, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
